@@ -1,9 +1,9 @@
 [project]
-site_name = "template"
-site_url = "https://atomic-samplers.github.io/template/"
+site_name = "bysque"
+site_url = "https://atomic-samplers.github.io/bysque/"
 site_description = ""
 site_author = ""
-repo_url = "https://github.com/Atomic-Samplers/template/"
+repo_url = "https://github.com/Atomic-Samplers/bysque/"
 edit_uri = "blob/main/docs/"
 use_directory_urls = false
 

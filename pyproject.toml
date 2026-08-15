@@ -3,13 +3,13 @@ requires = ["uv_build>=0.12.0,<0.13.0"]
 build-backend = "uv_build"
 
 [project]
-name = "template"
+name = "bysque"
 version = "0.0.1"
-description = ""
+description = "`bysque` is a package to compute chemical bond descriptors from quantum chemical data such as Hamiltonian/Overlap/Density matrices."
 readme = "README.md"
 license = "BSD-3-Clause"
 license-files = ["LICENSE.md"]
-authors = [{ name = "", email = "" }]
+authors = [{ name = "Tom Demeyere", email = "tom.dmre@gmail.com" }]
 keywords = []
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -25,7 +25,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.11, <3.15"
-dependencies = []
+dependencies = ["numpy"]
 
 [project.urls]
 repository = ""
