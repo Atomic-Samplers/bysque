@@ -1,0 +1,64 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests-base:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - name: check out repo
+        uses: actions/checkout@v5
+
+      - name: install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: install dependencies
+        run: uv sync --group tests
+
+      - name: run tests with pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: upload coverage report as artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-python-${{ matrix.python-version }}
+          path: coverage.xml
+          retention-days: 1
+
+  upload-coverage:
+    needs: tests-base
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v5
+
+      - name: download coverage artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: coverage-reports
+
+      - name: upload coverage to codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: coverage-reports
+          fail_ci_if_error: true
