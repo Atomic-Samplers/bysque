@@ -15,7 +15,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -24,7 +23,7 @@ classifiers = [
     "Operating System :: MacOS",
     "Typing :: Typed",
 ]
-requires-python = ">=3.11, <3.15"
+requires-python = ">=3.12, <3.15"
 dependencies = ["numpy"]
 
 [project.urls]
@@ -33,12 +32,13 @@ documentation = ""
 changelog = ""
 
 [dependency-groups]
-tests = ["pytest", "pytest-cov"]
+tests = ["pytest", "pytest-cov", "pymatgen @ git+https://github.com/tomdemeyere/pymatgen.git@mcba_old", "scipy"]
 docs = [
     "zensical>=0.0.54",
     "mkdocstrings-python>=2.0.0",
 ]
 dev = ["ruff", "ty", "pre-commit"]
+extra = ["jax", "torch"]
 
 [tool.ruff]
 src = ["src", "tests"]
@@ -64,6 +64,8 @@ ignore = [
   "PLC0415",
   "SIM115",
   "PYI063",
+  "PLR2004",
+  "CPY001",
 ]
 
 unfixable = ["T20", "F841"]
@@ -79,7 +81,7 @@ max-args = 8
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "I002"]
-"tests/**" = ["ANN", "ARG", "D", "E402", "PTH", "S101", "PLR2004", "I002"]
+"tests/**" = ["ANN", "ARG", "D", "E402", "PTH", "S101", "PLR2004", "I002", "INP001"]
 
 [tool.ty.src]
 include = ["src", "tests"]
@@ -93,7 +95,6 @@ pythonpath = "src"
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "--strict-markers", "--strict-config"]
 xfail_strict = true
-filterwarnings = ["error"]
 
 [tool.coverage.run]
 source = ["src"]

@@ -61,8 +61,6 @@ site/
 *doctrees*
 docs/reference/*
 
-data/
-
 results/
 outputs/
 *.log
