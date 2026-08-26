@@ -12,20 +12,25 @@ LobsterMatrixData: dict[str, dict[SupportsInt | None, NDArray[complexfloating]]]
 
 
 class VasprunLike(Protocol):
+
     @property
-    def eigenvalues(self) -> Mapping[SupportsInt, np.ndarray] | None: ...
+    def eigenvalues(self) -> Mapping[SupportsInt, np.ndarray] | None:
+        ...
 
     efermi: float | None
     actual_kpoints: np.ndarray | None
     actual_kpoints_weights: np.ndarray | None
 
     @property
-    def is_spin(self) -> bool: ...
+    def is_spin(self) -> bool:
+        ...
 
 
 class LobsterMatricesLike(Protocol):
+
     @property
-    def spins(self) -> Sequence[SupportsInt] | None: ...
+    def spins(self) -> Sequence[SupportsInt] | None:
+        ...
 
     matrix_type: str
     matrices: np.ndarray
@@ -73,8 +78,8 @@ class NumPyConvertible(Protocol):
         ...
 
 
-# @runtime_checkable
-# class NumericArray(SliceIndexable, Protocol):
+#@runtime_checkable
+#class NumericArray(SliceIndexable, Protocol):
 #    @property
 #    def dtype(self) -> Any:
 #        """Data type of the array elements."""
@@ -218,7 +223,6 @@ class SupportsComparison(Protocol):
     def __gt__(self, other: Any, /) -> Self: ...
     def __ge__(self, other: Any, /) -> Self: ...
 
-
 @runtime_checkable
 class SupportsComplex(Protocol):
     @property
@@ -231,8 +235,8 @@ class SupportsComplex(Protocol):
         """Return the imaginary part of the array."""
         ...
 
-    def conj(self) -> Self: ...
-
+    def conj(self) -> Self:
+        ...
 
 # --------------------------------------------------------------------------
 # Aggregate
@@ -258,29 +262,12 @@ class NumericArray(
         class MyArray(NumericArray, SupportsBitwise, Protocol): ...
     """
 
-
-a: NumericArray = np.array([2])
-
-b = np.array([2])
-
-b.all()
-
-import jax.numpy as jnp
-
-c: NumericArray = jnp.eye(3)
-
-from torch import Tensor
-
-d: NumericArray = Tensor(3)
-
-Tensor(3).sum()
-
-
 class ContractFunction[ArrayType: NumericArray](Protocol):
     def __call__(self, pattern: str, *args: ArrayType) -> ArrayType: ...
 
 
 class ArrayNamespace[ArrayType: NumericArray](Protocol):
+
     def abs(self, x: ArrayType, /) -> ArrayType: ...
     def round(self, x: ArrayType, /) -> ArrayType: ...
     def ones_like(self, x: ArrayType, /) -> ArrayType: ...
