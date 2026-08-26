@@ -544,7 +544,7 @@ class COBIComputable(LobsterComputable[np.ndarray]):
 
         Like [get_icobi_between][bysque.compute.core.COBIComputable.get_icobi_between],
         but the final orbital pair is taken from the energy-binned density
-        matrix, so the result is resolved over energy bins.
+        matrix, so the result is resolved over specified energies.
 
         Parameters
         ----------
