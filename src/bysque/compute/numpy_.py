@@ -8,11 +8,11 @@ from bysque.protocols import NumericArray
 
 
 def contract[ArrayType: NumericArray](pattern: str, *arrays: ArrayType) -> ArrayType:
-    """Contract `arrays` according to an einsum `pattern` using numpy.
+    """
+    Contract `arrays` according to an einsum `pattern` using numpy.
 
-    Thin wrapper around numpy.einsum with optimal contraction ordering. It is
-    the default `contract_function` of
-    [LobsterComputable][bysque.compute.core.LobsterComputable].
+    Thin wrapper around numpy.einsum with optimal contraction ordering. It is the default
+    `contract_function` of [LobsterComputable][bysque.compute.core.LobsterComputable] .
 
     Parameters
     ----------
@@ -28,7 +28,6 @@ def contract[ArrayType: NumericArray](pattern: str, *arrays: ArrayType) -> Array
 
     Generic
     -------
-    ArrayType : NumericArray
-        The array type of the operands and of the returned value.
+    ArrayType : NumericArray The array type of the operands and of the returned value.
     """
     return np.einsum(pattern, *arrays, optimize="optimal")

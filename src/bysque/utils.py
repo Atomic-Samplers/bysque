@@ -12,10 +12,11 @@ if TYPE_CHECKING:
 
 
 def get_cycle(indices: Sequence[int]) -> list[tuple[int, int]]:
-    """Return the consecutive ordered pairs of a closed cycle over `indices`.
+    """
+    Return the consecutive ordered pairs of a closed cycle over `indices` .
 
-    Pairs each index with its successor, wrapping the last index back to the
-    first, so that n indices yield n pairs.
+    Pairs each index with its successor, wrapping the last index back to the first, so that n
+    indices yield n pairs.
 
     Parameters
     ----------
@@ -29,8 +30,7 @@ def get_cycle(indices: Sequence[int]) -> list[tuple[int, int]]:
 
     Examples
     --------
-    >>> get_cycle([0, 1, 2])
-    [(0, 1), (1, 2), (2, 0)]
+    >>> get_cycle([0, 1, 2]) [(0, 1), (1, 2), (2, 0)]
     """
     size = len(indices)
 
@@ -38,12 +38,13 @@ def get_cycle(indices: Sequence[int]) -> list[tuple[int, int]]:
 
 
 def get_invariant_permutations(count: int) -> Generator[list[int], None, None]:
-    """Yield the orderings of range(count) anchored on each pair of endpoints.
+    """
+    Yield the orderings of range(count) anchored on each pair of endpoints.
 
-    For every unordered pair (first, last) drawn from range(count), yields the
-    ordering that places first at the front and last at the back, keeping the
-    remaining indices in their natural order in between. The number of yielded
-    orderings is therefore the number of pairs, count * (count - 1) / 2.
+    For every unordered pair (first, last) drawn from range(count), yields the ordering that places
+    first at the front and last at the back, keeping the remaining indices in their natural order
+    in between. The number of yielded orderings is therefore the number of pairs, count * (count -
+    1) / 2.
 
     Parameters
     ----------
@@ -57,8 +58,7 @@ def get_invariant_permutations(count: int) -> Generator[list[int], None, None]:
 
     Examples
     --------
-    >>> list(get_invariant_permutations(3))
-    [[0, 2, 1], [0, 1, 2], [1, 0, 2]]
+    >>> list(get_invariant_permutations(3)) [[0, 2, 1], [0, 1, 2], [1, 0, 2]]
     """
     indices = list(range(count))
 

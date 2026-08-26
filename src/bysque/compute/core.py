@@ -1,30 +1,23 @@
-"""Compute derived quantities from Lobster coefficient matrices.
+"""
+Compute derived quantities from Lobster coefficient matrices.
 
-The central object is [LobsterComputable][bysque.compute.core.LobsterComputable],
-which holds projected wavefunction coefficients together with the occupations,
-k-points and k-weights needed to form density matrices and related descriptors.
-[COBIComputable][bysque.compute.core.COBIComputable] specialises it for crystal
-orbital bond index (COBI/ICOBI) quantities.
+The central object is [LobsterComputable][bysque.compute.core.LobsterComputable] , which holds
+projected wavefunction coefficients together with the occupations, k-points and k-weights needed to
+form density matrices and related descriptors. [COBIComputable][bysque.compute.core.COBIComputable]
+specialises it for crystal orbital bond index (COBI/ICOBI) quantities.
 
 Shape and symbol conventions
 ----------------------------
 The einsum patterns in this module use single-letter axis labels:
 
-s : spin channels
-k : k-points
-n : bands
-i : orbital (row) index of a matrix
-j : orbital (column) index of a matrix
-t : real-space translations
-b : energy bins
+s : spin channels k : k-points n : bands i : orbital (row) index of a matrix j : orbital (column)
+index of a matrix t : real-space translations b : energy bins
 
 The stored arrays therefore have the following canonical shapes:
 
-coefficients : (s, k, i, n)   projection coefficients c_skin
-occupations  : (s, k, n)      band occupations f_skn
-eigenvalues  : (s, k, n)      band eigenvalues
-k_points     : (k, 3)         fractional k-point coordinates
-k_weights    : (k,)           k-point weights
+coefficients : (s, k, i, n) projection coefficients c_skin occupations : (s, k, n) band occupations
+f_skn eigenvalues : (s, k, n) band eigenvalues k_points : (k, 3) fractional k-point coordinates
+k_weights : (k,) k-point weights
 """
 
 from __future__ import annotations
@@ -50,13 +43,13 @@ if TYPE_CHECKING:
 
 
 class LobsterComputable[ArrayType: NumericArray]:
-    """Container of projected coefficients that computes density matrices.
+    """
+    Container of projected coefficients that computes density matrices.
 
-    Holds the quantities extracted from a Lobster coefficient calculation and
-    contracts them into density matrices and derived working quantities. Every
-    contraction is delegated to `contract_function`, so a single instance works
-    with any array backend that satisfies
-    [NumericArray][bysque.protocols.NumericArray].
+    Holds the quantities extracted from a Lobster coefficient calculation and contracts them into
+    density matrices and derived working quantities. Every contraction is delegated to
+    `contract_function` , so a single instance works with any array backend that satisfies
+    [NumericArray][bysque.protocols.NumericArray] .
 
     Parameters
     ----------
@@ -84,10 +77,9 @@ class LobsterComputable[ArrayType: NumericArray]:
 
     Generic
     -------
-    ArrayType : NumericArray
-        The array type of every stored quantity and every returned value.
-        Parameterising the class lets one implementation serve numpy, jax and
-        torch without branching on the backend.
+    ArrayType : NumericArray The array type of every stored quantity and every returned value.
+    Parameterising the class lets one implementation serve numpy, jax and torch without branching
+    on the backend.
     """
 
     xp: ClassVar[ArrayNamespace[Any]] = np
@@ -122,7 +114,8 @@ class LobsterComputable[ArrayType: NumericArray]:
         lobster_matrices: LobsterMatricesLike,
         **kwargs: Any,
     ) -> Self:
-        """Build a `LobsterComputable` from pymatgen VASP and Lobster objects.
+        """
+        Build a `LobsterComputable` from pymatgen VASP and Lobster objects.
 
         Parameters
         ----------
@@ -222,7 +215,8 @@ class LobsterComputable[ArrayType: NumericArray]:
         i_indices: ArrayType | slice = slice(None),
         j_indices: ArrayType | slice = slice(None),
     ) -> ArrayType:
-        """Return the one-particle density matrix D_sij.
+        """
+        Return the one-particle density matrix D_sij.
 
         D_sij = sum_kn w_k f_skn c_skin conj(c_skjn)
 
@@ -265,11 +259,11 @@ class LobsterComputable[ArrayType: NumericArray]:
     def get_gaussian_smeared_eigenvalues(
         self, energies: np.ndarray, sigma: float = 0.01
     ) -> np.ndarray:
-        """Return Gaussian weights distributing each band over an energy grid.
+        """
+        Return Gaussian weights distributing each band over an energy grid.
 
-        For every band the weight is exp(-((E - eps) / sigma) ** 2 / 2), an
-        unnormalised Gaussian centred on the band eigenvalue eps and evaluated at
-        each grid energy E.
+        For every band the weight is exp(-((E - eps) / sigma) ** 2 / 2), an unnormalised Gaussian
+        centred on the band eigenvalue eps and evaluated at each grid energy E.
 
         Parameters
         ----------
@@ -311,12 +305,12 @@ class LobsterComputable[ArrayType: NumericArray]:
         j_indices: ArrayType | Sequence[int] | slice = slice(None),
         use_occupations: bool = False,
     ) -> ArrayType:
-        """Return the density matrix resolved over energy bins.
+        """
+        Return the density matrix resolved over energy bins.
 
-        Like [get_density_matrix][bysque.compute.core.LobsterComputable.get_density_matrix],
-        but every band n is distributed over energy bins b through the weights
-        in `bins` (typically Gaussian-smeared occupations), yielding a spectral
-        density matrix.
+        Like [get_density_matrix][bysque.compute.core.LobsterComputable.get_density_matrix] , but
+        every band n is distributed over energy bins b through the weights in `bins` (typically
+        Gaussian-smeared occupations), yielding a spectral density matrix.
 
         Parameters
         ----------
@@ -372,11 +366,12 @@ class LobsterComputable[ArrayType: NumericArray]:
         *,
         use_occupations: bool = True,
     ) -> ArrayType:
-        """Return a flexibly reduced coefficient product.
+        """
+        Return a flexibly reduced coefficient product.
 
-        Selects sub-ranges along each axis, forms the product
-        c_skin conj(c_skjn) (optionally weighted by occupations and a Bloch
-        phase), and removes the axes named in `sum_over` from the output.
+        Selects sub-ranges along each axis, forms the product c_skin conj(c_skjn) (optionally
+        weighted by occupations and a Bloch phase), and removes the axes named in `sum_over` from
+        the output.
 
         Parameters
         ----------
@@ -438,7 +433,8 @@ class LobsterComputable[ArrayType: NumericArray]:
     def get_real_density_matrix(
         self, translations: ArrayType | None, tolerance: float = 1.0e-4, **kwargs: Any
     ) -> ArrayType:
-        """Return the real part of the density matrix, asserting it is real.
+        """
+        Return the real part of the density matrix, asserting it is real.
 
         Parameters
         ----------
@@ -465,10 +461,11 @@ class LobsterComputable[ArrayType: NumericArray]:
         return density_matrix.real
 
     def get_bloch_phase_factor(self, translations: ArrayType) -> ArrayType:
-        """Return the Bloch phase factor exp(-2 pi i sum_j k_j t_j).
+        """
+        Return the Bloch phase factor exp(-2 pi i sum_j k_j t_j).
 
-        Resolves the density matrix per real-space translation: each k-point
-        contributes the phase acquired over the translation.
+        Resolves the density matrix per real-space translation: each k-point contributes the phase
+        acquired over the translation.
 
         Parameters
         ----------
@@ -486,20 +483,20 @@ class LobsterComputable[ArrayType: NumericArray]:
 
 
 class COBIComputable(LobsterComputable[np.ndarray]):
-    """Crystal orbital bond index (COBI/ICOBI) computations.
+    """
+    Crystal orbital bond index (COBI/ICOBI) computations.
 
-    Specialises [LobsterComputable][bysque.compute.core.LobsterComputable] for
-    numpy arrays and adds the multi-centre bond indices obtained from products
-    of real density-matrix elements.
+    Specialises [LobsterComputable][bysque.compute.core.LobsterComputable] for numpy arrays and
+    adds the multi-centre bond indices obtained from products of real density-matrix elements.
     """
 
     def get_icobi_between(self, *indices: int, cells: np.ndarray | None = None) -> np.ndarray:
-        """Return the integrated crystal orbital bond index between orbitals.
+        """
+        Return the integrated crystal orbital bond index between orbitals.
 
-        Forms the product of off-diagonal density-matrix elements over the
-        orbital pairs drawn from `indices`, scaled by factorial(len(indices)).
-        Two indices use the ordered pairs (i, j) and (j, i); more than two use
-        every unordered pair.
+        Forms the product of off-diagonal density-matrix elements over the orbital pairs drawn from
+        `indices` , scaled by factorial(len(indices)). Two indices use the ordered pairs (i, j) and
+        (j, i); more than two use every unordered pair.
 
         Parameters
         ----------
@@ -540,11 +537,12 @@ class COBIComputable(LobsterComputable[np.ndarray]):
     def get_cobi_between(
         self, *indices: int, energies: np.ndarray, cells: np.ndarray | None = None
     ) -> np.ndarray:
-        """Return the energy-resolved crystal orbital bond index between orbitals.
+        """
+        Return the energy-resolved crystal orbital bond index between orbitals.
 
-        Like [get_icobi_between][bysque.compute.core.COBIComputable.get_icobi_between],
-        but the final orbital pair is taken from the energy-binned density
-        matrix, so the result is resolved over specified energies.
+        Like [get_icobi_between][bysque.compute.core.COBIComputable.get_icobi_between] , but the
+        final orbital pair is taken from the energy-binned density matrix, so the result is
+        resolved over specified energies.
 
         Parameters
         ----------
@@ -599,13 +597,13 @@ class COBIComputable(LobsterComputable[np.ndarray]):
     def get_invariant_cobi_between(
         self, *indices: int, energies: np.ndarray, cells: np.ndarray | None = None
     ) -> np.ndarray:
-        """Return the permutation-invariant energy-resolved crystal orbital bond index.
+        """
+        Return the permutation-invariant energy-resolved crystal orbital bond index.
 
-        Like [get_cobi_between][bysque.compute.core.COBIComputable.get_cobi_between],
-        but sums the energy-binned contribution over every endpoint permutation
-        from [get_invariant_permutations][bysque.utils.get_invariant_permutations]
-        and scales by 2 factorial(len(indices) - 2), so the result no longer
-        depends on the order of `indices`.
+        Like [get_cobi_between][bysque.compute.core.COBIComputable.get_cobi_between] , but sums the
+        energy-binned contribution over every endpoint permutation from
+        [get_invariant_permutations][bysque.utils.get_invariant_permutations] and scales by 2
+        factorial(len(indices) - 2), so the result no longer depends on the order of `indices` .
 
         Parameters
         ----------

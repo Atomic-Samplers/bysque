@@ -81,6 +81,7 @@ max-args = 8
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "I002"]
+"src/bysque/protocols.py" = ["D102", "D105"]
 "tests/**" = ["ANN", "ARG", "D", "E402", "PTH", "S101", "PLR2004", "I002", "INP001"]
 
 [tool.ty.src]
