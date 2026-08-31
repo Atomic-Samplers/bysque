@@ -637,7 +637,7 @@ class COBIComputable(LobsterComputable[np.ndarray]):
             energies, translations, i_indices=indices, j_indices=indices
         )
 
-        n_spin, n_bins, _, _, _ = binned_density_matrix.shape
+        n_spin, n_bins, *_ = binned_density_matrix.shape
 
         tmp = np.zeros((n_spin, n_sites, n_sites), dtype=np.float64)
 
