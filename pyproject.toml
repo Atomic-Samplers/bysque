@@ -81,14 +81,21 @@ max-args = 8
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "I002"]
+"src/bysque/protocols.py" = ["D102", "D105"]
 "tests/**" = ["ANN", "ARG", "D", "E402", "PTH", "S101", "PLR2004", "I002", "INP001"]
 
 [tool.ty.src]
 include = ["src", "tests"]
-exclude = ["docs/**", ".github/**"]
+exclude = ["docs/**", ".github/**", "tests/**/conftest.py"]
 
 [tool.ty.rules]
 all = "error"
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+unresolved-import = "ignore"
 
 [tool.pytest.ini_options]
 pythonpath = "src"

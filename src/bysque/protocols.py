@@ -1,17 +1,27 @@
+"""
+Structural types describing the array and pymatgen objects `bysque` consumes.
+
+Two families of protocols live here. The `*Like` protocols capture the subset of pymatgen's
+`Vasprun` and `LobsterMatrices` attributes that
+[LobsterComputable][bysque.compute.core.LobsterComputable] reads, so any object exposing those
+attributes is accepted. The array protocols capture the portable intersection of numpy.ndarray, jax
+Array and torch Tensor, letting a single implementation serve every backend without branching on
+its concrete type.
+"""
+
 from __future__ import annotations
 
-from collections.abc import Mapping, Iterator, Sequence
-from typing import Any, Protocol, Self, SupportsInt, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, Self, SupportsInt, runtime_checkable
 
-import numpy as np
-from numpy import complexfloating
-from numpy.typing import NDArray
-from numpy.typing import ArrayLike
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Mapping, Sequence
 
-LobsterMatrixData: dict[str, dict[SupportsInt | None, NDArray[complexfloating]]]
+    import numpy as np
 
 
 class VasprunLike(Protocol):
+    """The pymatgen `Vasprun` attributes and methods `bysque` requires."""
+
     @property
     def eigenvalues(self) -> Mapping[SupportsInt, np.ndarray] | None: ...
 
@@ -24,6 +34,8 @@ class VasprunLike(Protocol):
 
 
 class LobsterMatricesLike(Protocol):
+    """The pymatgen `LobsterMatrices` attributes read when building a computable."""
+
     @property
     def spins(self) -> Sequence[SupportsInt] | None: ...
 
@@ -35,71 +47,13 @@ class LobsterMatricesLike(Protocol):
     kpoints: list[tuple[float, ...]]
 
 
-@runtime_checkable
-class Shaped(Protocol):
-    """Protocol for objects with a shape attribute."""
-
-    @property
-    def shape(self) -> tuple[int, ...]:
-        """Tuple of dimensions of the object."""
-        ...
-
-
-@runtime_checkable
-class SliceIndexable(Shaped, Protocol):
-    """Protocol for objects that can be indexed with slices."""
-
-    def __getitem__(self, key: tuple[slice, ...] | slice, /) -> Self:
-        """Return the item at the given index."""
-        ...
-
-
-@runtime_checkable
-class NumPyConvertible(Protocol):
-    """
-    Protocol for objects compatible with NumPy's ``ndarray``.
-
-    Extends [`MutableArrayLike`][] with `__array__` to allow
-    transparent interoperation with the NumPy C-API.
-
-    Parameters
-    ----------
-    T : type
-        The scalar element type of the array.
-    """
-
-    def __array__(self, *args: Any, **kwargs: Any) -> Any:
-        """Return a NumPy ``ndarray`` representation of this object."""
-        ...
-
-
-# @runtime_checkable
-# class NumericArray(SliceIndexable, Protocol):
-#    @property
-#    def dtype(self) -> Any:
-#        """Data type of the array elements."""
-#        ...
-#
-#    @property
-#    def real(self) -> Self:
-#        """Return the real part of the array."""
-#        ...
-#
-#    @property
-#    def imag(self) -> Self:
-#        """Return the imaginary part of the array."""
-#        ...
-#
-#    def tolist(self) -> list[Any]:
-#        """Convert the array to a (nested) list."""
-#        ...
-
-
 # --------------------------------------------------------------------------
 # Core attributes
 # --------------------------------------------------------------------------
 @runtime_checkable
 class HasDType(Protocol):
+    """Array exposing a `dtype`."""
+
     @property
     def dtype(self) -> Any:
         """np.dtype | torch.dtype | jnp dtype — mutually unrelated types."""
@@ -108,9 +62,11 @@ class HasDType(Protocol):
 
 @runtime_checkable
 class HasShape(Protocol):
+    """Array exposing `shape` and `ndim`."""
+
     @property
     def shape(self) -> tuple[int, ...]:
-        """torch returns ``torch.Size``, which subclasses ``tuple[int, ...]``."""
+        """Torch returns ``torch.Size``, which subclasses ``tuple[int, ...]``."""
         ...
 
     @property
@@ -119,7 +75,11 @@ class HasShape(Protocol):
 
 @runtime_checkable
 class HasDevice(Protocol):
-    """numpy >= 2.0, jax >= 0.4.27 (property, was a method before), torch any."""
+    """
+    Array exposing a `device` .
+
+    numpy >= 2.0, jax >= 0.4.27 (property, was a method before), torch any.
+    """
 
     @property
     def device(self) -> Any: ...
@@ -127,7 +87,11 @@ class HasDevice(Protocol):
 
 @runtime_checkable
 class HasItemSize(Protocol):
-    """torch >= 2.1 only — both were added there for array-API parity."""
+    """
+    Array exposing `itemsize` and `nbytes` .
+
+    torch >= 2.1 only — both were added there for array-API parity.
+    """
 
     @property
     def itemsize(self) -> int: ...
@@ -141,6 +105,8 @@ class HasItemSize(Protocol):
 # --------------------------------------------------------------------------
 @runtime_checkable
 class SupportsArrayInterop(Protocol):
+    """Array convertible to a numpy array or to a nested list."""
+
     def __array__(self, *args: Any, **kwargs: Any) -> Any:
         """Signature varies (numpy 2 passes ``copy=``), so stay permissive."""
         ...
@@ -152,7 +118,11 @@ class SupportsArrayInterop(Protocol):
 
 @runtime_checkable
 class SupportsScalarConversion(Protocol):
-    """All raise for arrays with more than one element."""
+    """
+    Array convertible to a Python scalar.
+
+    All raise for arrays with more than one element.
+    """
 
     def item(self) -> Any: ...
     def __bool__(self) -> bool: ...
@@ -164,8 +134,10 @@ class SupportsScalarConversion(Protocol):
 
 @runtime_checkable
 class SupportsContainerOps(Protocol):
+    """Array supporting length, iteration and indexing."""
+
     def __len__(self) -> int:
-        """Raises ``TypeError``/``IndexError`` on 0-d in all three."""
+        """Return the length; raises `TypeError`/`IndexError` on 0-d in all three."""
         ...
 
     def __iter__(self) -> Iterator[Any]: ...
@@ -178,6 +150,8 @@ class SupportsContainerOps(Protocol):
 # --------------------------------------------------------------------------
 @runtime_checkable
 class SupportsArithmetic(Protocol):
+    """Array supporting the elementwise arithmetic operators."""
+
     def __add__(self, other: Any, /) -> Self: ...
     def __radd__(self, other: Any, /) -> Self: ...
     def __sub__(self, other: Any, /) -> Self: ...
@@ -201,7 +175,11 @@ class SupportsArithmetic(Protocol):
 
 @runtime_checkable
 class SupportsBitwise(Protocol):
-    """Integer/bool dtypes only; float dtypes raise in all three."""
+    """
+    Array supporting the elementwise bitwise operators.
+
+    Integer/bool dtypes only; float dtypes raise in all three.
+    """
 
     def __and__(self, other: Any, /) -> Self: ...
     def __or__(self, other: Any, /) -> Self: ...
@@ -213,6 +191,8 @@ class SupportsBitwise(Protocol):
 
 @runtime_checkable
 class SupportsComparison(Protocol):
+    """Array supporting the elementwise comparison operators."""
+
     def __lt__(self, other: Any, /) -> Self: ...
     def __le__(self, other: Any, /) -> Self: ...
     def __gt__(self, other: Any, /) -> Self: ...
@@ -221,6 +201,8 @@ class SupportsComparison(Protocol):
 
 @runtime_checkable
 class SupportsComplex(Protocol):
+    """Array exposing real and imaginary parts and conjugation."""
+
     @property
     def real(self) -> Self:
         """Return the real part of the array."""
@@ -250,37 +232,40 @@ class NumericArray(
     SupportsComplex,
     Protocol,
 ):
-    """The portable intersection of ndarray / Array / Tensor.
+    """
+    The portable intersection of ndarray, jax Array and torch Tensor.
 
-    Deliberately omits ``SupportsBitwise`` (dtype-conditional) and
-    ``HasItemSize`` (torch >= 2.1). Mix them in explicitly if you need them::
+    Deliberately omits [SupportsBitwise][bysque.protocols.SupportsBitwise] (dtype-conditional) and
+    [HasItemSize][bysque.protocols.HasItemSize] (torch >= 2.1). Mix them in explicitly if you need
+    them::
 
-        class MyArray(NumericArray, SupportsBitwise, Protocol): ...
+    class MyArray(NumericArray, SupportsBitwise, Protocol): ...
     """
 
 
-a: NumericArray = np.array([2])
-
-b = np.array([2])
-
-b.all()
-
-import jax.numpy as jnp
-
-c: NumericArray = jnp.eye(3)
-
-from torch import Tensor
-
-d: NumericArray = Tensor(3)
-
-Tensor(3).sum()
-
-
 class ContractFunction[ArrayType: NumericArray](Protocol):
+    """
+    Callable performing an einsum-style contraction over arrays.
+
+    Generic
+    -------
+    ArrayType : NumericArray The array type of the operands and of the returned value; a single
+    contraction signature then serves every backend.
+    """
+
     def __call__(self, pattern: str, *args: ArrayType) -> ArrayType: ...
 
 
 class ArrayNamespace[ArrayType: NumericArray](Protocol):
+    """
+    Namespace of elementwise array operations, such as the numpy module.
+
+    Generic
+    -------
+    ArrayType : NumericArray The array type accepted and returned by every operation, so the
+    namespace stays bound to a single backend.
+    """
+
     def abs(self, x: ArrayType, /) -> ArrayType: ...
     def round(self, x: ArrayType, /) -> ArrayType: ...
     def ones_like(self, x: ArrayType, /) -> ArrayType: ...

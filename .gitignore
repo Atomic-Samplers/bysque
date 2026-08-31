@@ -21,6 +21,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+uv.lock
 
 .venv/
 venv/
@@ -88,6 +89,7 @@ outputs/
 Thumbs.db
 Desktop.ini
 
+/tmp/*
 *.tmp
 *.temp
 ~*
