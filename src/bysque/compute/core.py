@@ -24,11 +24,17 @@ from __future__ import annotations
 
 import re
 from math import factorial, pi, sqrt
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, override
 
 import numpy as np
 
-from bysque.compute.numpy_ import contract
+from bysque.compute.numpy_ import (
+    compute_coxx,
+    compute_icoxx,
+    contract,
+    get_inphase_translations_and_weights,
+    get_translations,
+)
 from bysque.protocols import (
     ArrayNamespace,
     ContractFunction,
@@ -108,14 +114,15 @@ class LobsterComputable[ArrayType: NumericArray]:
         self.contract_function = contract_function
 
     @classmethod
-    def from_vasp_pymatgen_objects(
-        cls,
-        vasprun: VasprunLike,
-        lobster_matrices: LobsterMatricesLike,
-        **kwargs: Any,
-    ) -> Self:
+    def parse(
+        cls, vasprun: VasprunLike, lobster_matrices: LobsterMatricesLike, **_kwargs: Any
+    ) -> dict[str, Any]:
         """
-        Build a `LobsterComputable` from pymatgen VASP and Lobster objects.
+        Extract the constructor arguments from pymatgen VASP and Lobster objects.
+
+        Reads eigenvalues, occupations, k-points and k-weights from `vasprun`, pairs them with the
+        coefficient matrices, checks their shapes agree, and truncates the occupations and
+        eigenvalues to the number of projected orbitals.
 
         Parameters
         ----------
@@ -123,21 +130,20 @@ class LobsterComputable[ArrayType: NumericArray]:
             Parsed vasprun providing eigenvalues, k-points and k-weights.
         lobster_matrices : LobsterMatricesLike
             Parsed Lobster matrices; `matrix_type` must be "coefficient".
-        **kwargs
-            Forwarded to the constructor (use_time_reversal, contract_function).
+        **_kwargs
+            Ignored; accepted so subclasses can forward extra objects.
 
         Returns
         -------
-        Self
-            A new instance whose occupations and eigenvalues are truncated to
-            the number of projected orbitals.
+        dict of str to Any
+            Keyword arguments for the constructor.
 
         Raises
         ------
         ValueError
-            If the matrices are not coefficient matrices, the vasprun carries no
-            eigenvalues, or the extracted arrays are mutually inconsistent in
-            shape.
+            If the matrices are not coefficient matrices, the vasprun carries no eigenvalues or
+            Fermi energy, the Lobster and vasprun k-points disagree, or the extracted arrays are
+            mutually inconsistent in shape.
         """
         if lobster_matrices.matrix_type != "coefficient":
             raise ValueError(
@@ -206,7 +212,47 @@ class LobsterComputable[ArrayType: NumericArray]:
         occupations = occupations[..., :c_nj]
         eigenvalues = eigenvalues[..., :c_nj] - efermi
 
-        return cls(coefficients, occupations, k_points, k_weights, eigenvalues, **kwargs)
+        return {
+            "coefficients": coefficients,
+            "occupations": occupations,
+            "eigenvalues": eigenvalues,
+            "k_points": k_points,
+            "k_weights": k_weights,
+        }
+
+    @classmethod
+    def from_vasp_pymatgen_objects(
+        cls,
+        vasprun: VasprunLike,
+        lobster_matrices: LobsterMatricesLike,
+        **kwargs: Any,
+    ) -> Self:
+        """
+        Build a `LobsterComputable` from pymatgen VASP and Lobster objects.
+
+        Parameters
+        ----------
+        vasprun : VasprunLike
+            Parsed vasprun providing eigenvalues, k-points and k-weights.
+        lobster_matrices : LobsterMatricesLike
+            Parsed Lobster matrices; `matrix_type` must be "coefficient".
+        **kwargs
+            Forwarded to the constructor (use_time_reversal, contract_function).
+
+        Returns
+        -------
+        Self
+            A new instance whose occupations and eigenvalues are truncated to
+            the number of projected orbitals.
+
+        Raises
+        ------
+        ValueError
+            If the matrices are not coefficient matrices, the vasprun carries no
+            eigenvalues, or the extracted arrays are mutually inconsistent in
+            shape.
+        """
+        return cls(**cls.parse(vasprun, lobster_matrices, **kwargs))
 
     def get_density_matrix(
         self,
@@ -478,7 +524,7 @@ class LobsterComputable[ArrayType: NumericArray]:
             Phase factor for every translation and k-point, shape (t, k).
         """
         return self.xp.exp(
-            -2j * pi * self.contract_function("kj,tj->tk", self.k_points, translations)
+            -2j * pi * self.contract_function("tj,kj->tk", translations, self.k_points)
         )
 
 
@@ -515,24 +561,15 @@ class COBIComputable(LobsterComputable[np.ndarray]):
         n_sites = len(indices)
 
         cells = np.zeros((n_sites, 3), int) if cells is None else np.asarray(cells)
-
-        i_up, j_up = np.triu_indices(n_sites, 1)
-        translations, inverse = np.unique(cells[j_up] - cells[i_up], axis=0, return_inverse=True)
+        translations, inverse = get_translations(cells)
 
         density_matrix = self.get_real_density_matrix(
             translations, i_indices=indices, j_indices=indices
         )
 
-        n_spin = density_matrix.shape[0]
-
-        tmp = np.zeros((n_spin, n_sites, n_sites), dtype=np.float64)
-
-        tmp[..., i_up, j_up] = density_matrix[..., inverse, i_up, j_up]
-        tmp[..., j_up, i_up] = tmp[..., i_up, j_up]
-
-        pairs = get_cycle(range(n_sites))
-
-        return np.prod([tmp[..., a, b] for a, b in pairs], axis=0) * factorial(n_sites)
+        return compute_icoxx(
+            get_cycle(range(n_sites)), density_matrix, density_matrix, inverse
+        ) * factorial(n_sites)
 
     def get_cobi_between(
         self, *indices: int, energies: np.ndarray, cells: np.ndarray | None = None
@@ -565,9 +602,7 @@ class COBIComputable(LobsterComputable[np.ndarray]):
         n_sites = len(indices)
 
         cells = np.zeros((n_sites, 3), int) if cells is None else np.asarray(cells)
-
-        i_up, j_up = np.triu_indices(n_sites, 1)
-        translations, inverse = np.unique(cells[j_up] - cells[i_up], axis=0, return_inverse=True)
+        translations, inverse = get_translations(cells)
 
         density_matrix = self.get_real_density_matrix(
             translations, i_indices=indices, j_indices=indices
@@ -576,23 +611,9 @@ class COBIComputable(LobsterComputable[np.ndarray]):
             energies, translations, i_indices=indices, j_indices=indices
         )
 
-        n_spin, n_bins, _, _, _ = binned_density_matrix.shape
+        pairs = get_cycle(range(n_sites))
 
-        tmp = np.zeros((n_spin, n_sites, n_sites), dtype=np.float64)
-
-        tmp[..., i_up, j_up] = density_matrix[..., inverse, i_up, j_up]
-        tmp[..., j_up, i_up] = tmp[..., i_up, j_up]
-
-        tmp_ = np.zeros((n_spin, n_bins, n_sites, n_sites), dtype=np.float64)
-
-        tmp_[..., i_up, j_up] = binned_density_matrix[..., inverse, i_up, j_up]
-        tmp_[..., j_up, i_up] = tmp_[..., i_up, j_up]
-
-        *pairs, last = get_cycle(range(n_sites))
-
-        scalar = np.prod([tmp[..., a, b] for a, b in pairs], axis=0)
-
-        return scalar[..., None] * tmp_[..., last[0], last[1]]
+        return compute_coxx(pairs, density_matrix, binned_density_matrix, inverse)
 
     def get_invariant_cobi_between(
         self, *indices: int, energies: np.ndarray, cells: np.ndarray | None = None
@@ -626,9 +647,7 @@ class COBIComputable(LobsterComputable[np.ndarray]):
         n_sites = len(indices)
 
         cells = np.zeros((n_sites, 3), int) if cells is None else np.asarray(cells)
-
-        i_up, j_up = np.triu_indices(n_sites, 1)
-        translations, inverse = np.unique(cells[j_up] - cells[i_up], axis=0, return_inverse=True)
+        translations, inverse = get_translations(cells)
 
         density_matrix = self.get_real_density_matrix(
             translations, i_indices=indices, j_indices=indices
@@ -637,22 +656,353 @@ class COBIComputable(LobsterComputable[np.ndarray]):
             energies, translations, i_indices=indices, j_indices=indices
         )
 
-        n_spin, n_bins, _, _, _ = binned_density_matrix.shape
-
-        tmp = np.zeros((n_spin, n_sites, n_sites), dtype=np.float64)
-
-        tmp[..., i_up, j_up] = density_matrix[..., inverse, i_up, j_up]
-        tmp[..., j_up, i_up] = tmp[..., i_up, j_up]
-
-        tmp_ = np.zeros((n_spin, n_bins, n_sites, n_sites), dtype=np.float64)
-
-        tmp_[..., i_up, j_up] = binned_density_matrix[..., inverse, i_up, j_up]
-        tmp_[..., j_up, i_up] = tmp_[..., i_up, j_up]
-
-        result = []
-        for permutation in get_invariant_permutations(n_sites):
-            *pairs, last = get_cycle(permutation)
-            scalar = np.prod([tmp[..., a, b] for a, b in pairs], axis=0)
-            result.append(scalar[..., None] * tmp_[..., last[0], last[1]])
+        result = [
+            compute_coxx(get_cycle(pairs), density_matrix, binned_density_matrix, inverse)
+            for pairs in get_invariant_permutations(n_sites)
+        ]
 
         return np.sum(result, axis=0) * 2.0 * factorial(n_sites - 2)
+
+
+class COHPComputable(LobsterComputable[np.ndarray]):
+    """
+    Crystal orbital Hamilton population (COHP/ICOHP) computations.
+
+    Specialises [LobsterComputable][bysque.compute.core.LobsterComputable] for numpy arrays and
+    pairs the density matrices with real-space Hamiltonian matrices, yielding the Hamilton
+    populations and an interpolation of the Hamiltonian onto arbitrary k-points.
+
+    Parameters
+    ----------
+    hamiltonians : np.ndarray
+        Reciprocal-space Hamiltonian matrices H_skij, shape (s, k, i, j).
+    lattice : np.ndarray
+        Real-space lattice vectors as rows, shape (3, 3).
+    k_mesh : tuple of int
+        Number of k-points along each reciprocal axis.
+    **kwargs
+        Forwarded to [LobsterComputable][bysque.compute.core.LobsterComputable].
+    """
+
+    def __init__(
+        self,
+        hamiltonians: np.ndarray,
+        lattice: np.ndarray,
+        k_mesh: tuple[int, int, int],
+        **kwargs: Any,
+    ) -> None:
+        self.hamiltonians = hamiltonians
+
+        self.lattice = lattice
+        self.k_mesh = k_mesh
+
+        super().__init__(**kwargs)
+
+    def get_icohp_between(self, *indices: int, cells: np.ndarray | None = None) -> np.ndarray:
+        """
+        Return the integrated crystal orbital Hamilton population between orbitals.
+
+        Forms the product of off-diagonal density-matrix elements over the orbital pairs drawn
+        from `indices`, taking the last pair from the real-space Hamiltonian. Two indices use the
+        ordered pairs (i, j) and (j, i); more than two use every unordered pair.
+
+        Parameters
+        ----------
+        *indices : int
+            Two or more orbital indices defining the interaction.
+        cells : np.ndarray or None, optional
+            Integer lattice cell of each index's periodic image, shape
+            (len(indices), 3). Defaults to the home cell (all zeros) for every
+            index. Pairwise cell differences set the real-space translations.
+
+        Returns
+        -------
+        np.ndarray
+            ICOHP values of shape (s,).
+        """
+        n_sites = len(indices)
+
+        cells = np.zeros((n_sites, 3), int) if cells is None else np.asarray(cells)
+        translations, inverse = get_translations(cells)
+
+        density_matrix = self.get_real_density_matrix(
+            translations, i_indices=indices, j_indices=indices
+        )
+        real_space_hamiltonian = self.get_real_space_hamiltonian(
+            translations, i_indices=indices, j_indices=indices
+        )
+
+        return compute_icoxx(
+            get_cycle(range(n_sites)), density_matrix, real_space_hamiltonian, inverse
+        )
+
+    def get_cohp_between(
+        self, *indices: int, energies: np.ndarray, cells: np.ndarray | None = None
+    ) -> np.ndarray:
+        """
+        Return the energy-resolved crystal orbital Hamilton population between orbitals.
+
+        Like [get_icohp_between][bysque.compute.core.COHPComputable.get_icohp_between], but the
+        energy-resolved pair is taken from the energy-binned density matrix while the Hamiltonian
+        supplies the remaining pairs, so the result is resolved over the specified energies.
+
+        Parameters
+        ----------
+        *indices : int
+            Two or more orbital indices defining the interaction.
+        energies : np.ndarray
+            Per-band bin weights forwarded to
+            [get_binned_density_matrix][bysque.compute.core.LobsterComputable.get_binned_density_matrix],
+            shape (s, b, k, n).
+        cells : np.ndarray or None, optional
+            Integer lattice cell of each index's periodic image, shape
+            (len(indices), 3). Defaults to the home cell (all zeros) for every
+            index. Pairwise cell differences set the real-space translations.
+
+        Returns
+        -------
+        np.ndarray
+            COHP values resolved over energy bins, shape (s, b).
+        """
+        n_sites = len(indices)
+
+        cells = np.zeros((n_sites, 3), int) if cells is None else np.asarray(cells)
+        translations, inverse = get_translations(cells)
+
+        binned_density_matrix = self.get_binned_density_matrix(
+            energies, translations, i_indices=indices, j_indices=indices
+        )
+        real_space_hamiltonian = self.get_real_space_hamiltonian(
+            translations, i_indices=indices, j_indices=indices
+        )
+
+        return compute_coxx(
+            get_cycle(range(n_sites)), real_space_hamiltonian, binned_density_matrix, inverse
+        )
+
+    def get_real_space_hamiltonian(
+        self,
+        translations: np.ndarray | None = None,
+        *,
+        i_indices: np.ndarray | Sequence[int] | slice = slice(None),
+        j_indices: np.ndarray | Sequence[int] | slice = slice(None),
+    ) -> np.ndarray:
+        """
+        Return the real-space Hamiltonian H_sij.
+
+        H_sij = sum_k w_k H_skij, optionally resolved per real-space translation through the Bloch
+        phase factor exp(-2 pi i sum_j k_j t_j).
+
+        Parameters
+        ----------
+        translations : np.ndarray or None, optional
+            Fractional real-space translations, shape (t, 3). When given, the
+            Hamiltonian gains a translation axis.
+        i_indices, j_indices : np.ndarray or slice, optional
+            Orbital selections for the row (i) and column (j) axes. The default
+            selects every orbital.
+
+        Returns
+        -------
+        np.ndarray
+            Real-space Hamiltonian of shape (s, i, j), or (s, t, i, j) when
+            translations are given. Only the real part is returned.
+        """
+        arguments = (
+            self.k_weights,
+            self.hamiltonians[..., i_indices, :][..., :, j_indices],
+        )
+
+        if translations is None:
+            return self.contract_function("k,skij->sij", *arguments).real
+
+        phase_factor = self.get_bloch_phase_factor(translations)
+
+        return self.contract_function("k,skij,tk->stij", *arguments, phase_factor).real
+
+    def get_binned_real_space_hamiltonian(
+        self,
+        bins: np.ndarray,
+        translations: np.ndarray | None = None,
+        *,
+        i_indices: np.ndarray | Sequence[int] | slice = slice(None),
+        j_indices: np.ndarray | Sequence[int] | slice = slice(None),
+        use_occupations: bool = False,
+    ) -> np.ndarray:
+        """
+        Return the real-space Hamiltonian resolved over energy bins.
+
+        Like
+        [get_real_space_hamiltonian][bysque.compute.core.COHPComputable.get_real_space_hamiltonian],
+        but every band n is distributed over energy bins b through the weights in `bins` (typically
+        Gaussian-smeared occupations), yielding a spectral Hamiltonian.
+
+        Parameters
+        ----------
+        bins : np.ndarray
+            Per-band bin weights, shape (s, b, k, n).
+        translations : np.ndarray or None, optional
+            Fractional real-space translations, shape (t, 3). Adds a leading
+            translation axis when given.
+        i_indices, j_indices : np.ndarray or slice, optional
+            Orbital selections for the row (i) and column (j) axes.
+        use_occupations : bool, default False
+            Whether to additionally weight each band by its occupation.
+
+        Returns
+        -------
+        np.ndarray
+            Binned Hamiltonian of shape (s, b, i, j), or (s, b, t, i, j) when
+            translations are given. The real part is returned when
+            use_time_reversal is set.
+        """
+        arguments = [
+            self.k_weights,
+            bins,
+            self.coefficients[:, :, i_indices, :],
+            self.coefficients[:, :, j_indices, :].conj(),
+            self.get_real_space_hamiltonian(
+                translations, i_indices=i_indices, j_indices=j_indices
+            ),
+        ]
+
+        input_pattern = "k,sbkn,skin,skjn"
+
+        if use_occupations:
+            input_pattern += ",skn"
+            arguments.append(self.occupations)
+
+        if translations is None:
+            return self.contract_function(f"{input_pattern},sij->sbij", *arguments)
+
+        phase_factor = self.get_bloch_phase_factor(translations)
+
+        binned_real_space_hamiltonian = self.contract_function(
+            f"{input_pattern},stij,tk->sbtij", *arguments, phase_factor
+        )
+
+        return (
+            binned_real_space_hamiltonian.real
+            if self.use_time_reversal
+            else binned_real_space_hamiltonian
+        )
+
+    def get_hamiltonian_at(
+        self,
+        k_points: np.ndarray,
+        *,
+        i_indices: np.ndarray | Sequence[int] | slice = slice(None),
+        j_indices: np.ndarray | Sequence[int] | slice = slice(None),
+    ) -> np.ndarray:
+        """
+        Return the Hamiltonian interpolated onto arbitrary k-points.
+
+        Fourier-interpolates the reciprocal-space Hamiltonian: builds the minimum-image real-space
+        Hamiltonian from the stored k-mesh, then transforms it back with the Bloch phase factor
+        exp(2 pi i sum_j k_j t_j) at each requested k-point.
+
+        Parameters
+        ----------
+        k_points : np.ndarray
+            Fractional k-point coordinates to evaluate, shape (k, 3).
+        i_indices, j_indices : np.ndarray or slice, optional
+            Orbital selections for the row (i) and column (j) axes. The default
+            selects every orbital.
+
+        Returns
+        -------
+        np.ndarray
+            Interpolated Hamiltonian, shape (s, k, i, j).
+        """
+        in_phase_translations, weights = get_inphase_translations_and_weights(
+            self.k_mesh, self.lattice
+        )
+        full_hamiltonian = self.get_real_space_hamiltonian(
+            in_phase_translations, i_indices=i_indices, j_indices=j_indices
+        )
+
+        phase_factor = self.xp.exp(
+            2j * pi * self.contract_function("tj,kj->tk", in_phase_translations, k_points)
+        )
+
+        return self.contract_function("t,tk,stij->skij", weights, phase_factor, full_hamiltonian)
+
+    def get_bands_at(self, k_points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Return the interpolated band eigenvalues and eigenvectors at k-points.
+
+        Diagonalises the Hermitian Hamiltonian from
+        [get_hamiltonian_at][bysque.compute.core.COHPComputable.get_hamiltonian_at] at every
+        requested k-point.
+
+        Parameters
+        ----------
+        k_points : np.ndarray
+            Fractional k-point coordinates to evaluate, shape (k, 3).
+
+        Returns
+        -------
+        np.ndarray
+            Band eigenvalues in ascending order, shape (s, k, n).
+        np.ndarray
+            Corresponding eigenvectors as columns, shape (s, k, i, n).
+        """
+        return np.linalg.eigh(self.get_hamiltonian_at(k_points))
+
+    @override
+    @classmethod
+    def parse(
+        cls,
+        vasprun: VasprunLike,
+        lobster_matrices: LobsterMatricesLike,
+        hamilton_matrices: LobsterMatricesLike | None = None,
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        """
+        Extract the constructor arguments from pymatgen VASP and Lobster objects.
+
+        Extends [parse][bysque.compute.core.LobsterComputable.parse] with the real-space
+        Hamiltonian matrices, the k-mesh and the real-space lattice.
+
+        Parameters
+        ----------
+        vasprun : VasprunLike
+            Parsed vasprun providing eigenvalues, k-points, k-weights, k-mesh and lattice.
+        lobster_matrices : LobsterMatricesLike
+            Parsed Lobster coefficient matrices; `matrix_type` must be "coefficient".
+        hamilton_matrices : LobsterMatricesLike or None
+            Parsed Lobster Hamiltonian matrices. Required.
+        **_kwargs
+            Ignored.
+
+        Returns
+        -------
+        dict of str to Any
+            Keyword arguments for the constructor.
+
+        Raises
+        ------
+        ValueError
+            If `hamilton_matrices` is None, the vasprun k-points are not a Gamma or Monkhorst mesh,
+            or the coefficient arrays are mutually inconsistent in shape.
+        """
+        if hamilton_matrices is None:
+            raise ValueError("hamilton_matrices is required to build a COHPComputable")
+
+        dictionary = super().parse(vasprun, lobster_matrices)
+
+        dictionary["hamiltonians"] = hamilton_matrices.matrices
+
+        kpoints = vasprun.kpoints
+
+        if kpoints.style.name not in {"Gamma", "Monkhorst"}:
+            raise ValueError(
+                "COHP interpolation requires a Gamma or Monkhorst k-mesh, got "
+                f"{kpoints.style.name!r}"
+            )
+
+        dictionary["k_mesh"] = tuple(kpoints.kpts[0])
+
+        dictionary["lattice"] = vasprun.final_structure.lattice.matrix
+
+        return dictionary

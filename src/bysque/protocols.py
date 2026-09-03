@@ -29,6 +29,9 @@ class VasprunLike(Protocol):
     actual_kpoints: np.ndarray | None
     actual_kpoints_weights: np.ndarray | None
 
+    kpoints: Any
+    final_structure: Any
+
     @property
     def is_spin(self) -> bool: ...
 

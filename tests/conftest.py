@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 from monty.io import zopen
-from pymatgen.io.lobster.future.outputs.coxxcar import COBICAR
-from pymatgen.io.lobster.future.outputs.icoxxlist import ICOBILIST, NcICOBILIST
+from pymatgen.io.lobster.future.outputs.coxxcar import COBICAR, COHPCAR
+from pymatgen.io.lobster.future.outputs.icoxxlist import ICOBILIST, ICOHPLIST, NcICOBILIST
 from pymatgen.io.lobster.future.outputs.misc import LobsterMatrices
 from pymatgen.io.vasp import Vasprun
 
@@ -64,9 +64,24 @@ def f2xe_cobicar() -> COBICAR:
     return COBICAR(DATA_DIR / "pubchem-83674-f2xe/COBICAR.lobster.gz")
 
 
+@pytest.fixture(name="f2xe_cohpcar")
+def f2xe_cohpcar() -> COHPCAR:
+    return COHPCAR(DATA_DIR / "pubchem-83674-f2xe/COHPCAR.lobster.gz")
+
+
 @pytest.fixture(name="f2xe_icobilist")
 def f2xe_icobilist() -> ICOBILIST:
     return ICOBILIST(DATA_DIR / "pubchem-83674-f2xe/ICOBILIST.lobster.gz")
+
+
+@pytest.fixture(name="f2xe_icohplist")
+def f2xe_icohplist() -> ICOHPLIST:
+    return ICOHPLIST(DATA_DIR / "pubchem-83674-f2xe/ICOHPLIST.lobster.gz")
+
+
+@pytest.fixture(name="f2xe_hamilton_matrices")
+def f2xe_hamilton_matrices() -> LobsterMatrices:
+    return LobsterMatrices(DATA_DIR / "pubchem-83674-f2xe/hamiltonMatrices.lobster.gz", efermi=0.0)
 
 
 @pytest.fixture(name="f2xe_nc_icobilist")
@@ -88,6 +103,7 @@ def gete_lobster_matrices() -> LobsterMatrices:
 def gete_icobilist() -> ICOBILIST:
     return ICOBILIST(DATA_DIR / "mp-938-ge3te3/ICOBILIST.lobster.gz")
 
+
 @pytest.fixture(name="gete_vasprun")
 def gete_vasprun() -> Vasprun:
     return Vasprun(DATA_DIR / "mp-938-ge3te3/vasprun.xml.gz")
@@ -96,3 +112,58 @@ def gete_vasprun() -> Vasprun:
 @pytest.fixture(name="gete_nc_icobilist")
 def gete_nc_icobilist() -> NcICOBILIST:
     return NcICOBILIST(DATA_DIR / "mp-938-ge3te3/NcICOBILIST.lobster.gz")
+
+
+@pytest.fixture(name="gete_cohpcar")
+def gete_cohpcar() -> COHPCAR:
+    return COHPCAR(DATA_DIR / "mp-938-ge3te3/COHPCAR.lobster.gz")
+
+
+@pytest.fixture(name="gete_icohplist")
+def gete_icohplist() -> ICOHPLIST:
+    return ICOHPLIST(DATA_DIR / "mp-938-ge3te3/ICOHPLIST.lobster.gz")
+
+
+@pytest.fixture(name="gete_hamilton_matrices")
+def gete_hamilton_matrices() -> LobsterMatrices:
+    return LobsterMatrices(DATA_DIR / "mp-938-ge3te3/hamiltonMatrices.lobster.gz", efermi=0.0)
+
+
+@pytest.fixture(name="b2mg_cobicar")
+def b2mg_cobicar() -> COBICAR:
+    return COBICAR(DATA_DIR / "mp-763-b2mg/COBICAR.lobster.gz")
+
+
+@pytest.fixture(name="b2mg_lobster_matrices")
+def b2mg_lobster_matrices() -> LobsterMatrices:
+    return LobsterMatrices(DATA_DIR / "mp-763-b2mg/coefficientMatricesLSO2.lobster.gz")
+
+
+@pytest.fixture(name="b2mg_icobilist")
+def b2mg_icobilist() -> ICOBILIST:
+    return ICOBILIST(DATA_DIR / "mp-763-b2mg/ICOBILIST.lobster.gz")
+
+
+@pytest.fixture(name="b2mg_vasprun")
+def b2mg_vasprun() -> Vasprun:
+    return Vasprun(DATA_DIR / "mp-763-b2mg/vasprun.xml.gz")
+
+
+@pytest.fixture(name="b2mg_nc_icobilist")
+def b2mg_nc_icobilist() -> NcICOBILIST:
+    return NcICOBILIST(DATA_DIR / "mp-763-b2mg/NcICOBILIST.lobster.gz")
+
+
+@pytest.fixture(name="b2mg_cohpcar")
+def b2mg_cohpcar() -> COHPCAR:
+    return COHPCAR(DATA_DIR / "mp-763-b2mg/COHPCAR.lobster.gz")
+
+
+@pytest.fixture(name="b2mg_icohplist")
+def b2mg_icohplist() -> ICOHPLIST:
+    return ICOHPLIST(DATA_DIR / "mp-763-b2mg/ICOHPLIST.lobster.gz")
+
+
+@pytest.fixture(name="b2mg_hamilton_matrices")
+def b2mg_hamilton_matrices() -> LobsterMatrices:
+    return LobsterMatrices(DATA_DIR / "mp-763-b2mg/hamiltonMatrices.lobster.gz", efermi=0.0)
