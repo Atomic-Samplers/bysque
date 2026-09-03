@@ -4,13 +4,13 @@ from typing import Any
 
 import numpy as np
 from numpy.testing import assert_allclose
-from pymatgen.io.lobster.future.outputs.coxxcar import COBICAR
-from pymatgen.io.lobster.future.outputs.icoxxlist import NcICOBILIST
+from pymatgen.io.lobster.future.outputs.coxxcar import COBICAR, COHPCAR
+from pymatgen.io.lobster.future.outputs.icoxxlist import ICOHPLIST, NcICOBILIST
 from pymatgen.io.lobster.future.outputs.misc import LobsterMatrices
 from pymatgen.io.vasp import Vasprun
 from scipy.integrate import trapezoid
 
-from bysque.compute.core import COBIComputable, LobsterComputable
+from bysque.compute.core import COBIComputable, COHPComputable, LobsterComputable
 from bysque.utils import (
     get_invariant_permutations,
 )
@@ -257,3 +257,201 @@ def test_variant_invariant_computation(
         our_cobi = np.sum(our_cobi, axis=0) * factorial(len(indices)) / len(our_cobi)
 
         assert_allclose(our_cobi, our_invariant_cobi, atol=1.0e-12)
+
+
+def test_from_vasp_pymatgen_objects_hamiltonian(
+    f2xe_lobster_matrices: LobsterMatrices,
+    f2xe_hamilton_matrices: LobsterMatrices,
+    f2xe_vasprun: Vasprun,
+):
+
+    lobster_computable = COHPComputable.from_vasp_pymatgen_objects(
+        f2xe_vasprun, f2xe_lobster_matrices, hamilton_matrices=f2xe_hamilton_matrices
+    )
+
+    assert lobster_computable.k_mesh == (1, 1, 1)
+    assert_allclose(lobster_computable.lattice, np.eye(3) * 15)
+
+
+def test_icohp_computation_gamma(
+    f2xe_lobster_matrices: LobsterMatrices,
+    f2xe_hamilton_matrices: LobsterMatrices,
+    f2xe_vasprun: Vasprun,
+    f2xe_icohplist: ICOHPLIST,
+):
+    icohp_computable = COHPComputable.from_vasp_pymatgen_objects(
+        f2xe_vasprun, f2xe_lobster_matrices, hamilton_matrices=f2xe_hamilton_matrices
+    )
+
+    for interaction in f2xe_icohplist.interactions:
+        if not any(interaction["orbitals"]):
+            continue
+
+        their_icohp = np.array(list(interaction["icoxx"].values()))
+
+        indices = [
+            f2xe_lobster_matrices.basis_functions.index(f"{i}_{j}")
+            for i, j in zip(interaction["centers"], interaction["orbitals"], strict=True)
+        ]
+
+        our_icohp = icohp_computable.get_icohp_between(*indices)
+
+        assert_allclose(our_icohp, their_icohp, atol=1.0e-3, rtol=5.0e-2)
+
+
+def test_icohp_computation(
+    gete_lobster_matrices: LobsterMatrices,
+    gete_hamilton_matrices: LobsterMatrices,
+    gete_vasprun: Vasprun,
+    gete_icohplist: ICOHPLIST,
+):
+    icohp_computable = COHPComputable.from_vasp_pymatgen_objects(
+        gete_vasprun, gete_lobster_matrices, hamilton_matrices=gete_hamilton_matrices
+    )
+
+    current_cells = None
+    for interaction in gete_icohplist.interactions:
+        if not any(interaction["orbitals"]):
+            current_cells = np.array(interaction["cells"])
+            continue
+
+        their_icohp = np.array(list(interaction["icoxx"].values()))
+
+        indices = [
+            gete_lobster_matrices.basis_functions.index(f"{i}_{j}")
+            for i, j in zip(interaction["centers"], interaction["orbitals"], strict=True)
+        ]
+
+        our_icohp = icohp_computable.get_icohp_between(*indices, cells=current_cells)
+
+        assert_allclose(our_icohp, their_icohp, atol=1.0e-3, rtol=5.0e-2)
+
+
+def test_cohp_computation_gamma(
+    f2xe_lobster_matrices: LobsterMatrices,
+    f2xe_hamilton_matrices: LobsterMatrices,
+    f2xe_vasprun: Vasprun,
+    f2xe_cohpcar: COHPCAR,
+):
+    cobi_computable = COHPComputable.from_vasp_pymatgen_objects(
+        f2xe_vasprun, f2xe_lobster_matrices, hamilton_matrices=f2xe_hamilton_matrices
+    )
+
+    energy_range = f2xe_cohpcar.energies
+    (below_fermi,) = np.where(energy_range < 0)
+
+    energies = cobi_computable.get_gaussian_smeared_eigenvalues(f2xe_cohpcar.energies, sigma=0.1)
+
+    for interaction in f2xe_cohpcar.interactions:
+        if not any(interaction["orbitals"]):
+            continue
+
+        their_cobi = np.array(list(interaction["coxx"].values()))
+
+        indices = [
+            f2xe_lobster_matrices.basis_functions.index(f"{i}_{j}")
+            for i, j in zip(interaction["centers"], interaction["orbitals"], strict=True)
+        ]
+
+        our_cobi = cobi_computable.get_cohp_between(*indices, energies=energies)
+
+        our_icobis = trapezoid(our_cobi[:, below_fermi], energy_range[below_fermi])
+        their_icobis = trapezoid(their_cobi[:, below_fermi], energy_range[below_fermi])
+
+        assert_allclose(our_cobi, their_cobi, atol=1.0e-2, rtol=0.25)
+        assert_allclose(our_icobis, their_icobis, atol=1.0e-4, rtol=1.0e-5)
+
+
+def test_cohp_computation(
+    gete_lobster_matrices: LobsterMatrices,
+    gete_hamilton_matrices: LobsterMatrices,
+    gete_vasprun: Vasprun,
+    gete_cohpcar: COHPCAR,
+    gete_icohplist: ICOHPLIST,
+):
+    cohp_computable = COHPComputable.from_vasp_pymatgen_objects(
+        gete_vasprun, gete_lobster_matrices, hamilton_matrices=gete_hamilton_matrices
+    )
+
+    energies = cohp_computable.get_gaussian_smeared_eigenvalues(gete_cohpcar.energies, sigma=0.1)
+
+    energy_range = gete_cohpcar.energies
+
+    # Gaussian smearing will make curve spills above Fermi,
+    # while LOBSTER tetrahedron integration will not, let's put "Fermi" at 0.5 eV.
+    (below_fermi,) = np.where(energy_range < 0.5)
+
+    current_cells = None
+
+    cohp_interactions = gete_cohpcar.interactions
+    icohp_interactions = gete_icohplist.interactions
+
+    for cohp_interaction, icohp_interaction in zip(
+        cohp_interactions[1:], icohp_interactions, strict=True
+    ):
+        if not any(cohp_interaction["orbitals"]):
+            current_cells = np.array(icohp_interaction["cells"])
+            continue
+
+        assert current_cells is not None
+
+        assert cohp_interaction["centers"] == icohp_interaction["centers"]
+        assert cohp_interaction["orbitals"] == icohp_interaction["orbitals"]
+
+        indices = [
+            gete_lobster_matrices.basis_functions.index(f"{i}_{j}")
+            for i, j in zip(cohp_interaction["centers"], cohp_interaction["orbitals"], strict=True)
+        ]
+
+        our_cohp = cohp_computable.get_cohp_between(
+            *indices, energies=energies, cells=current_cells
+        )
+        their_cohp = np.array(list(cohp_interaction["coxx"].values()))
+
+        our_icobis = trapezoid(our_cohp[:, below_fermi], energy_range[below_fermi])
+        their_icobis = trapezoid(their_cohp[:, below_fermi], energy_range[below_fermi])
+
+        assert_allclose(our_icobis, their_icobis, atol=1.0e-5, rtol=1.0e-6)
+
+
+def test_hamiltonian_interpolation(
+    gete_lobster_matrices: LobsterMatrices,
+    gete_hamilton_matrices: LobsterMatrices,
+    gete_vasprun: Vasprun,
+):
+    cohp_computable = COHPComputable.from_vasp_pymatgen_objects(
+        gete_vasprun, gete_lobster_matrices, hamilton_matrices=gete_hamilton_matrices
+    )
+
+    new_hamilton_matrices = cohp_computable.get_hamiltonian_at(cohp_computable.k_points)
+
+    assert_allclose(new_hamilton_matrices.real, cohp_computable.hamiltonians.real, atol=1.0e-12)
+
+    # Suspiciously high tolerance needed here.
+    assert_allclose(new_hamilton_matrices, cohp_computable.hamiltonians, atol=1.0e-4)
+
+    random_k_point = np.array([[0.137, -0.061, 0.213]])
+    tmp = cohp_computable.get_hamiltonian_at(random_k_point)
+    tmp_ = cohp_computable.get_hamiltonian_at(-random_k_point)
+    assert_allclose(tmp, tmp_.conj(), atol=1e-12)
+
+
+def test_band_interpolation(
+    gete_lobster_matrices: LobsterMatrices,
+    gete_hamilton_matrices: LobsterMatrices,
+    gete_vasprun: Vasprun,
+):
+    cohp_computable = COHPComputable.from_vasp_pymatgen_objects(
+        gete_vasprun, gete_lobster_matrices, hamilton_matrices=gete_hamilton_matrices
+    )
+
+    eigenvalues, coefficients = cohp_computable.get_bands_at(cohp_computable.k_points)
+
+    old_eigenvalues = cohp_computable.eigenvalues
+    assert old_eigenvalues is not None
+
+    assert_allclose(eigenvalues - gete_vasprun.efermi, old_eigenvalues, atol=1.0e-6)
+
+    density_matrix = cohp_computable.get_real_density_matrix(None)
+    cohp_computable.coefficients = coefficients
+    assert_allclose(cohp_computable.get_real_density_matrix(None), density_matrix, atol=1.0e-6)

@@ -30,7 +30,8 @@ def get_cycle(indices: Sequence[int]) -> list[tuple[int, int]]:
 
     Examples
     --------
-    >>> get_cycle([0, 1, 2]) [(0, 1), (1, 2), (2, 0)]
+    >>> get_cycle([0, 1, 2])
+    [(0, 1), (1, 2), (2, 0)]
     """
     size = len(indices)
 
@@ -58,7 +59,8 @@ def get_invariant_permutations(count: int) -> Generator[list[int], None, None]:
 
     Examples
     --------
-    >>> list(get_invariant_permutations(3)) [[0, 2, 1], [0, 1, 2], [1, 0, 2]]
+    >>> list(get_invariant_permutations(3))
+    [[0, 2, 1], [0, 1, 2], [1, 0, 2]]
     """
     indices = list(range(count))
 
